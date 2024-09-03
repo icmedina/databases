@@ -72,4 +72,24 @@ def df2sql(df, server, database, table, mode, echo_display):
     
     current_time = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
     print(f"{current_time} - Data successfully loaded to '{table}' table in '{database}' database.")
-  
+
+#%% pyDBqueryStatement: General table query where statement can be altered
+def pyDBqueryStatement(database, statement):
+    import pandas as pd
+    from datetime import datetime
+ 
+    database_connection = pyConnect2DB(database)
+    current_time = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+    
+    try: # database_connection = pyConnect2PDM('prod'); table = 'promotions'
+        sql_data = pd.read_sql_query(f'{statement}', database_connection )
+        current_time = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+        print(f"{current_time} - Query executed successfully")
+    
+    except database_connection.Error as e:
+      print(f"Error retrieving entry from database: {e}")
+      
+    finally:
+        if database_connection:
+           database_connection.close()
+    return (sql_data)
