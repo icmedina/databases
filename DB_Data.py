@@ -2,7 +2,7 @@
 """
 Created on Tue Jan 15 13:38:55 2024
 
-Description: Python DB connection and query
+Description: Python connectors and query
 
 @author: Isidro Jr Medina
 """
@@ -13,6 +13,16 @@ def pyConnect2DB(server, database):
     db_connxn = pyodbc.connect('Driver={SQL Server};'
                       f'Server={server};'
                       f'Database={database};'
+                      'Trusted_Connection=yes;')
+    return (db_connxn)
+
+#%% Connect Linked Server
+def pyConnect2LinkedServer(server):
+    import pyodbc
+    
+    db_connxn = pyodbc.connect('Driver={SQL Server};'
+                      f'Server={server};'
+                      'Database=master;'
                       'Trusted_Connection=yes;')
     return (db_connxn)
 
@@ -42,6 +52,26 @@ def pyDBTableQuery(server, database, table, condition=False):
            database_connection.close()
     return (sql_data )
 
+#%% Query all columns from Linked Server table, returns actual data
+def pyDBLinkedServerQuery(server, linked_server, database, table):
+    import pandas as pd
+    from datetime import datetime
+    import warnings
+    warnings.simplefilter('ignore')
+    
+    #server='AKSQLSVR22'; database='PDT01PRD'; tb='[dbo].[pdt_ambulance_shifts]'
+    database_connection = pyConnect2LinkedServer(server)
+    current_time = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+    
+    try:
+        sql_data = pd.read_sql_query(f'SELECT * FROM {linked_server}.{database}.{table}', database_connection )
+        print(f"{current_time} - {table.title()} data fetched successfully.")
+    except database_connection.Error as e:
+        print(f"{current_time} - Error retrieving entry from {database}: {e}")
+    finally:
+        if database_connection:
+           database_connection.close()
+    return (sql_data )
 #%% convert date column to datetime format then remove millisec
 def format_SQLdt(df, column):
     import pandas as pd
@@ -93,3 +123,63 @@ def pyDBqueryStatement(database, statement):
         if database_connection:
            database_connection.close()
     return (sql_data)
+
+
+
+def load_data_to_azure(fname, src_path, container_name, blob_folder, env):
+    from azure.storage.blob import BlobServiceClient
+    from datetime import datetime
+    from dotenv import load_dotenv
+    import os
+
+    """
+    fname: name of the file in on-prem source and target blob
+    src_path: source path (on-prem)
+    blob_folder: destination path (relative path in azure storage container)
+    env: path to the .env file containing the credentials
+    """
+
+    file = f'{src_path}/{fname}'
+    blob_name = f'{blob_folder}/{fname}'            # The name of the file in the blob
+
+    # Get Azure Credentials
+    load_dotenv(env)
+    
+    account_name = os.getenv('AZ_RAWSTAGING_ACCOUNT_NAME')
+    account_key = os.getenv('AZ_RAWSTAGING_ACCOUNT_KEY')
+
+    # Azure Storage account connection string
+    conn_str = f'DefaultEndpointsProtocol=https;AccountName={account_name};AccountKey={account_key};EndpointSuffix=core.windows.net'
+
+    # Create a BlobServiceClient
+    blob_service_client = BlobServiceClient.from_connection_string(conn_str)
+    
+    # Get a BlobClient for the target blob
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    
+    # Upload the file
+    with open(file, 'rb') as data:
+        blob_client.upload_blob(data)
+    
+    print(f"{(datetime.now()).strftime('%Y-%m-%d %H:%M:%S')} - File uploaded to '{container_name}' Blob container: {blob_name}")
+
+#%% Connect to Snowflake
+def sf_connection(env):
+    import snowflake.connector as sf
+    from datetime import datetime
+    from dotenv import load_dotenv
+    import os
+    # env: path to the .env file containing the credentials
+    load_dotenv(env)
+    
+    conn = sf.connect(
+        user = os.getenv('SF_USER'),
+        password = os.getenv('SF_PASSWORD'),
+        account = os.getenv('SF_ACCOUNT'),
+        warehouse = os.getenv('SF_WAREHOUSE'),
+        database = os.getenv('SF_DATABASE'),
+        schema = os.getenv('SF_SCHEMA')
+    )
+    print(f'{(datetime.now()).strftime("%Y-%m-%d %H:%M:%S")} - Snowflake connection successfully established.')
+    
+    return conn
