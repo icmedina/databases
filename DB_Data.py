@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jan 15 13:38:55 2024
-
 Description: Python connectors and query
 
+Created on Tue Jan 15 13:38:55 2024
 @author: Isidro Jr Medina
 """
 #%% Connect DB Server, specify the database: 
@@ -59,7 +58,6 @@ def pyDBLinkedServerQuery(server, linked_server, database, table):
     import warnings
     warnings.simplefilter('ignore')
     
-    #server='AKSQLSVR22'; database='PDT01PRD'; tb='[dbo].[pdt_ambulance_shifts]'
     database_connection = pyConnect2LinkedServer(server)
     current_time = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
     
@@ -72,6 +70,7 @@ def pyDBLinkedServerQuery(server, linked_server, database, table):
         if database_connection:
            database_connection.close()
     return (sql_data )
+    
 #%% convert date column to datetime format then remove millisec
 def format_SQLdt(df, column):
     import pandas as pd
@@ -111,7 +110,7 @@ def pyDBqueryStatement(database, statement):
     database_connection = pyConnect2DB(database)
     current_time = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
     
-    try: # database_connection = pyConnect2PDM('prod'); table = 'promotions'
+    try:
         sql_data = pd.read_sql_query(f'{statement}', database_connection )
         current_time = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
         print(f"{current_time} - Query executed successfully")
@@ -124,8 +123,7 @@ def pyDBqueryStatement(database, statement):
            database_connection.close()
     return (sql_data)
 
-
-
+#%% Connect and Load data to Azure
 def load_data_to_azure(fname, src_path, container_name, blob_folder, env):
     from azure.storage.blob import BlobServiceClient
     from datetime import datetime
@@ -135,18 +133,15 @@ def load_data_to_azure(fname, src_path, container_name, blob_folder, env):
     """
     fname: name of the file in on-prem source and target blob
     src_path: source path (on-prem)
-    blob_folder: destination path (relative path in azure storage container)
+    blob_folder: target/ destination path (relative path in azure storage container)
     env: path to the .env file containing the credentials
     """
-
-    file = f'{src_path}/{fname}'
-    blob_name = f'{blob_folder}/{fname}'            # The name of the file in the blob
-
+    
     # Get Azure Credentials
     load_dotenv(env)
     
-    account_name = os.getenv('AZ_RAWSTAGING_ACCOUNT_NAME')
-    account_key = os.getenv('AZ_RAWSTAGING_ACCOUNT_KEY')
+    account_name = os.getenv('AZ_{container_name.upper()}_ACCOUNT_NAME')
+    account_key = os.getenv('AZ_{container_name.upper()}_ACCOUNT_KEY')
 
     # Azure Storage account connection string
     conn_str = f'DefaultEndpointsProtocol=https;AccountName={account_name};AccountKey={account_key};EndpointSuffix=core.windows.net'
@@ -154,14 +149,14 @@ def load_data_to_azure(fname, src_path, container_name, blob_folder, env):
     # Create a BlobServiceClient
     blob_service_client = BlobServiceClient.from_connection_string(conn_str)
     
-    # Get a BlobClient for the target blob
-    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    # Get a BlobClient for the target blob: f'{blob_folder}/{fname}'
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=f'{blob_folder}/{fname}')
     
     # Upload the file
-    with open(file, 'rb') as data:
+    with open(f'{src_path}/{fname}', 'rb') as data:
         blob_client.upload_blob(data)
     
-    print(f"{(datetime.now()).strftime('%Y-%m-%d %H:%M:%S')} - File uploaded to '{container_name}' Blob container: {blob_name}")
+    print(f"{(datetime.now()).strftime('%Y-%m-%d %H:%M:%S')} - File uploaded to '{container_name}' container: '{blob_folder}/{fname}'")
 
 #%% Connect to Snowflake
 def sf_connection(env):
